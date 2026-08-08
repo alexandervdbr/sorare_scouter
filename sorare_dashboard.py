@@ -400,7 +400,7 @@ if run_button:
                 return f"{x:.0f}" if isinstance(x, (int, float)) else "–"
 
             club_display = r["club_code"] or r["club"][:12].upper()
-            cards_html += f"""
+            card_html = f"""
             <div class="player-card {'value-pick' if is_value else ''}">
                 {'<div class="value-ribbon">Value</div>' if is_value else ''}
                 <div class="card-top">
@@ -420,6 +420,11 @@ if run_button:
                 </div>
             </div>
             """
+            # Strip leading whitespace on every line — otherwise Markdown
+            # treats 4+ leading spaces as a preformatted code block and
+            # renders the raw HTML as text instead of parsing it.
+            card_html = "\n".join(line.lstrip() for line in card_html.split("\n"))
+            cards_html += card_html
         cards_html += "</div>"
         st.markdown(cards_html, unsafe_allow_html=True)
 
