@@ -180,6 +180,22 @@ def search(competition_slug, rarity, position, min_apps_l15, max_price_eur, min_
 
 
 def find_value_picks(rows, min_apps=8, discount_threshold=0.6):
+    """
+    Flags players with a low price-per-score-point relative to peers in
+    the SAME POSITION within this result set.
+
+    IMPORTANT CAVEAT — read before trusting this signal: this does NOT
+    control for club reputation or market demand. Cards from smaller,
+    less-followed clubs are systematically cheaper across the board,
+    regardless of how well the player actually performs — lower name
+    recognition means lower demand, not necessarily a pricing mistake.
+    So this detector will naturally skew toward flagging players from
+    less prominent clubs. That can still be genuinely useful (a cheap,
+    reliable player is a cheap, reliable player), but it's closer to
+    "efficient performance-per-euro" than "underpriced relative to true
+    value" — and cards from bigger clubs tend to be easier to resell
+    later if you want liquidity, which this ratio doesn't account for.
+    """
     priced = [r for r in rows if r["price_eur"] and r["l15"] and r["apps_l15"] >= min_apps]
     if len(priced) < 5:
         return set()
@@ -299,9 +315,9 @@ h1, h2, h3, h4 { font-weight: 800 !important; letter-spacing: -0.01em; }
     box-shadow: 0 0 24px rgba(79,217,232,0.12);
 }
 
-.value-ribbon {
-    position: absolute; top: 14px; right: 14px;
-    font-size: 0.68rem;
+.value-banner {
+    display: inline-block;
+    font-size: 0.65rem;
     font-weight: 700;
     letter-spacing: 0.04em;
     color: #06101F;
@@ -309,6 +325,7 @@ h1, h2, h3, h4 { font-weight: 800 !important; letter-spacing: -0.01em; }
     border-radius: 999px;
     padding: 3px 10px;
     text-transform: uppercase;
+    margin-bottom: 10px;
 }
 
 .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -394,7 +411,8 @@ with st.sidebar:
     position = st.selectbox("Position", POSITIONS)
     min_apps = st.slider("Min appearances (last 15)", 0, 15, 8)
     price_range = st.slider("Price range (EUR)", 0, 500, (0, 100))
-    pages = st.slider("Pages to fetch (20/page)", 1, 5, 1)
+    pages = st.slider("Pages to fetch (20/page)", 1, 15, 1,
+                       help="Each page is a separate API call at the same size Sorare's own site uses. More pages = more players, but slower.")
     run_button = st.button("Search", type="primary", use_container_width=True)
 
 if run_button:
@@ -426,7 +444,7 @@ if run_button:
             club_display = r["club_code"] or r["club"][:12].upper()
             card_html = f"""
             <div class="player-card {'value-pick' if is_value else ''}">
-                {'<div class="value-ribbon">Value</div>' if is_value else ''}
+                {'<div class="value-banner">Efficient</div>' if is_value else ''}
                 <div class="card-top">
                     <span class="club-chip">{club_display}</span>
                     <span class="pos-pill">{r['position']}</span>
@@ -453,6 +471,9 @@ if run_button:
         st.markdown(cards_html, unsafe_allow_html=True)
 
         if value_names:
-            st.caption(f"⚡ {len(value_names)} value picks flagged (gold edge) — priced well below positional peers in this result set. Relative comparison only, not price history.")
+            st.caption(f"⚡ {len(value_names)} players flagged 'Efficient' — cheap relative to score, WITHIN their position. "
+                       f"Read this as 'high score per euro,' not 'underpriced': it doesn't account for club reputation, "
+                       f"and cards from smaller/less-followed clubs are cheaper across the board regardless of performance. "
+                       f"That can still be a good pick, but bigger-club cards tend to resell more easily later.")
 else:
     st.info("Set your filters on the left and hit Search.")
