@@ -144,6 +144,7 @@ def search(competition_slug, rarity, position, min_apps_l15, max_price_eur, min_
                 "price_eur": price_eur,
                 "next_game_id": next_game_id,
                 "fixture": None,
+                "club_code": None,
             }
             if row["apps_l15"] < min_apps_l15:
                 continue
@@ -170,8 +171,10 @@ def search(competition_slug, rarity, position, min_apps_l15, max_price_eur, min_
         gw = (game.get("so5Fixture") or {}).get("shortDisplayName", "")
         if r["club"] == home:
             r["fixture"] = f"vs {away_code} (H) · {gw}"
+            r["club_code"] = home_code
         elif r["club"] == away:
             r["fixture"] = f"vs {home_code} (A) · {gw}"
+            r["club_code"] = away_code
 
     return rows
 
@@ -396,11 +399,12 @@ if run_button:
             def fmt(x):
                 return f"{x:.0f}" if isinstance(x, (int, float)) else "–"
 
+            club_display = r["club_code"] or r["club"][:12].upper()
             cards_html += f"""
             <div class="player-card {'value-pick' if is_value else ''}">
                 {'<div class="value-ribbon">Value</div>' if is_value else ''}
                 <div class="card-top">
-                    <span class="club-chip">{r['club'][:12]}</span>
+                    <span class="club-chip">{club_display}</span>
                     <span class="pos-pill">{r['position']}</span>
                 </div>
                 <div class="player-name">{r['name']}</div>
