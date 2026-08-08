@@ -38,7 +38,7 @@ RARITIES = ["limited", "rare", "super_rare", "unique"]
 # ---------------- Data layer ----------------
 
 @st.cache_data(ttl=300)
-def _raw_search(advanced_filters, rarity, page, page_size, sort_field, sort_dir):
+def _raw_search(advanced_filters, rarity, page, page_size, sort_field, sort_dir, include_all_statuses=False):
     variables = {
         "skipTeamSlugs": False,
         "query": "",
@@ -46,7 +46,7 @@ def _raw_search(advanced_filters, rarity, page, page_size, sort_field, sort_dir)
         "pageSize": page_size,
         "advancedFilters": advanced_filters,
         "sorts": [{"field": sort_field, "direction": sort_dir}],
-        "refinements": [
+        "refinements": [] if include_all_statuses else [
             {
                 "field": "player.playing_status",
                 "operator": "EQUAL",
@@ -106,20 +106,24 @@ def _fetch_game_details(game_id):
     return data.get("data", {}).get("anyGame")
 
 
-def search(competition_slug, rarity, position, min_apps_l15, max_price_eur, min_price_eur, pages, page_size):
+def search(competition_slug, rarity, position, min_apps_l15, max_price_eur, min_price_eur,
+           pages, page_size, include_all_statuses=False, fetch_all=False):
     filters = f"sport:football AND (active_competitions:{competition_slug})"
     if position and position != "Any":
         filters += f" AND position:{position}"
 
     rows = []
-    for page in range(1, pages + 1):
+    page = 1
+    max_safety_pages = 30  # hard stop so a bug can't loop forever
+    while True:
         hits, err = _raw_search(filters, rarity, page, page_size,
-                                 "so5.club.last_fifteen_so5_average_score", "DESC")
+                                 "so5.club.last_fifteen_so5_average_score", "DESC",
+                                 include_all_statuses=include_all_statuses)
         if err:
-            st.error(f"API error: {err}")
+            st.error(f"API error on page {page}: {err}")
             break
         if not hits:
-            break
+            break  # ran out of players — this is how we know we got everyone
         for hit in hits:
             p = hit["anyPlayer"]
             price_eur = None
@@ -153,6 +157,16 @@ def search(competition_slug, rarity, position, min_apps_l15, max_price_eur, min_
             if min_price_eur is not None and (row["price_eur"] is None or row["price_eur"] < min_price_eur):
                 continue
             rows.append(row)
+
+        if fetch_all:
+            if page >= max_safety_pages:
+                st.warning(f"Stopped at {max_safety_pages} pages as a safety cap — tell Claude if you actually need more than {max_safety_pages * page_size} players.")
+                break
+            page += 1
+        else:
+            if page >= pages:
+                break
+            page += 1
 
     unique_game_ids = {r["next_game_id"] for r in rows if r["next_game_id"]}
     game_cache = {}
@@ -409,10 +423,21 @@ with st.sidebar:
     competition_name = st.selectbox("Competition", list(COMPETITIONS.keys()))
     rarity = st.selectbox("Rarity", RARITIES, index=0)
     position = st.selectbox("Position", POSITIONS)
-    min_apps = st.slider("Min appearances (last 15)", 0, 15, 8)
-    price_range = st.slider("Price range (EUR)", 0, 500, (0, 100))
-    pages = st.slider("Pages to fetch (20/page)", 1, 15, 1,
-                       help="Each page is a separate API call at the same size Sorare's own site uses. More pages = more players, but slower.")
+    min_apps = st.slider("Min appearances (last 15)", 0, 15, 0,
+                          help="Set to 0 to include everyone, including players with almost no minutes.")
+    price_range = st.slider("Price range (EUR)", 0, 500, (0, 500))
+    include_all_statuses = st.checkbox(
+        "Include bench/rotation players",
+        value=True,
+        help="Off = only Sorare-confirmed starters/regulars (fewer, safer players). On = everyone, including fringe squad players you might spot value in manually.",
+    )
+    fetch_all = st.checkbox(
+        "Fetch ALL matching players (ignore page limit)",
+        value=False,
+        help="Loops until it runs out of players instead of stopping at a fixed page count. Slower, but guarantees nothing is missed.",
+    )
+    pages = st.slider("Pages to fetch (20/page)", 1, 15, 5, disabled=fetch_all,
+                       help="Ignored when 'Fetch ALL' is checked above.")
     run_button = st.button("Search", type="primary", use_container_width=True)
 
 if run_button:
