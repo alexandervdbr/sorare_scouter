@@ -204,162 +204,186 @@ st.set_page_config(page_title="Sorare Scout", layout="wide", initial_sidebar_sta
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 :root {
-    --bg: #0D1712;
-    --surface: #16221B;
-    --surface-hover: #1C2A22;
-    --chalk: #F2F1EA;
-    --sage: #8FA398;
-    --pitch: #5FBF77;
-    --amber: #E8A93F;
-    --border: #263429;
+    --bg-base: #050914;
+    --bg-glow: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(59,130,246,0.35), transparent 60%);
+    --surface: rgba(30, 41, 71, 0.35);
+    --surface-border: rgba(148, 178, 255, 0.14);
+    --surface-border-hover: rgba(96, 165, 250, 0.5);
+    --text: #F3F6FF;
+    --text-dim: #93A0C4;
+    --blue: #4C8DFF;
+    --blue-soft: #7FB0FF;
+    --cyan: #4FD9E8;
+    --pill-bg: linear-gradient(135deg, #3B7BFF, #4FD9E8);
 }
 
-html, body, [class*="css"]  { color: var(--chalk); }
-.stApp { background: var(--bg); }
+* { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+.stApp {
+    background-color: var(--bg-base);
+    background-image: var(--bg-glow);
+    color: var(--text);
+}
 
 section[data-testid="stSidebar"] {
-    background: var(--surface);
-    border-right: 1px solid var(--border);
+    background: rgba(8, 13, 28, 0.9);
+    border-right: 1px solid var(--surface-border);
+}
+section[data-testid="stSidebar"] * { color: var(--text) !important; }
+
+/* Pill-ify Streamlit's native controls to match the reference language */
+.stButton > button {
+    background: var(--pill-bg) !important;
+    color: #06101F !important;
+    font-weight: 700 !important;
+    border: none !important;
+    border-radius: 999px !important;
+    padding: 10px 20px !important;
+    box-shadow: 0 4px 20px rgba(76,141,255,0.35);
+}
+div[data-baseweb="select"] > div, .stSlider {
+    border-radius: 14px !important;
+}
+div[data-baseweb="select"] > div {
+    background: var(--surface) !important;
+    border: 1px solid var(--surface-border) !important;
 }
 
-h1, h2, h3 { font-family: 'Teko', sans-serif !important; letter-spacing: 0.02em; }
+h1, h2, h3, h4 { font-weight: 800 !important; letter-spacing: -0.01em; }
 
-.scout-header {
-    display: flex;
-    align-items: baseline;
-    gap: 14px;
-    border-bottom: 2px solid var(--pitch);
-    padding-bottom: 10px;
-    margin-bottom: 4px;
-}
 .scout-header h1 {
-    font-size: 3rem;
-    font-weight: 700;
-    text-transform: uppercase;
+    font-size: 2.6rem;
+    font-weight: 800;
     margin: 0;
-    color: var(--chalk);
+    background: linear-gradient(90deg, #FFFFFF, var(--blue-soft));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 .scout-sub {
-    font-family: 'Inter', sans-serif;
-    color: var(--sage);
+    color: var(--text-dim);
     font-size: 0.85rem;
-    margin-top: -6px;
-    margin-bottom: 24px;
+    margin: 6px 0 28px 0;
 }
 .live-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--pitch);
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--cyan);
     display: inline-block;
-    box-shadow: 0 0 8px var(--pitch);
+    box-shadow: 0 0 10px var(--cyan);
 }
 
 .card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
     gap: 16px;
     margin-top: 8px;
 }
 .player-card {
     background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 16px 18px;
-    font-family: 'Inter', sans-serif;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--surface-border);
+    border-radius: 20px;
+    padding: 18px 20px;
     position: relative;
-    transition: border-color 0.15s ease;
+    transition: border-color 0.2s ease, transform 0.2s ease;
 }
-.player-card:hover { border-color: var(--pitch); }
-.player-card.value-pick { border-left: 3px solid var(--amber); }
+.player-card:hover {
+    border-color: var(--surface-border-hover);
+    transform: translateY(-2px);
+}
+.player-card.value-pick {
+    border-color: rgba(79, 217, 232, 0.55);
+    box-shadow: 0 0 24px rgba(79,217,232,0.12);
+}
 
 .value-ribbon {
-    position: absolute; top: 10px; right: 12px;
-    font-family: 'Teko', sans-serif;
-    font-size: 0.75rem;
-    letter-spacing: 0.08em;
-    color: var(--amber);
-    border: 1px solid var(--amber);
-    border-radius: 3px;
-    padding: 1px 6px;
+    position: absolute; top: 14px; right: 14px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #06101F;
+    background: var(--pill-bg);
+    border-radius: 999px;
+    padding: 3px 10px;
     text-transform: uppercase;
 }
 
-.card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .club-chip {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--sage);
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    padding: 2px 6px;
-    text-transform: uppercase;
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: var(--blue-soft);
+    background: rgba(76,141,255,0.12);
+    border-radius: 999px;
+    padding: 3px 10px;
 }
 .pos-pill {
-    font-family: 'Inter', sans-serif;
-    font-size: 0.7rem;
-    color: var(--pitch);
-    background: rgba(95,191,119,0.1);
-    border-radius: 3px;
-    padding: 2px 8px;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    background: rgba(255,255,255,0.05);
+    border-radius: 999px;
+    padding: 3px 10px;
 }
 
 .player-name {
-    font-family: 'Teko', sans-serif;
-    font-size: 1.7rem;
-    font-weight: 600;
-    color: var(--chalk);
-    margin: 2px 0 0 0;
-    line-height: 1.1;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 2px 0 2px 0;
+    line-height: 1.15;
 }
 .fixture-line {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.72rem;
-    color: var(--sage);
-    margin: 4px 0 10px 0;
+    color: var(--text-dim);
+    margin: 2px 0 14px 0;
 }
 
-.stat-ticker { display: flex; gap: 10px; margin: 10px 0; }
-.stat-block { text-align: center; flex: 1; }
+.stat-ticker { display: flex; gap: 8px; margin: 12px 0; }
+.stat-block {
+    text-align: center; flex: 1;
+    background: rgba(255,255,255,0.03);
+    border-radius: 12px;
+    padding: 8px 4px;
+}
 .stat-value {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 1.05rem;
-    color: var(--chalk);
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
 }
 .stat-label {
-    font-family: 'Inter', sans-serif;
-    font-size: 0.62rem;
-    color: var(--sage);
+    font-size: 0.6rem;
+    color: var(--text-dim);
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
 
 .card-footer {
     display: flex; justify-content: space-between; align-items: center;
-    border-top: 1px solid var(--border);
-    padding-top: 10px; margin-top: 8px;
+    border-top: 1px solid var(--surface-border);
+    padding-top: 12px; margin-top: 10px;
 }
 .price-tag {
     font-family: 'IBM Plex Mono', monospace;
-    font-weight: 500;
-    color: var(--amber);
+    font-weight: 600;
+    color: var(--cyan);
     font-size: 0.95rem;
 }
-.price-tag.no-offer { color: var(--sage); font-size: 0.75rem; }
+.price-tag.no-offer { color: var(--text-dim); font-size: 0.75rem; font-weight: 400; }
 .apps-badge {
-    font-family: 'Inter', sans-serif;
     font-size: 0.7rem;
-    color: var(--sage);
+    color: var(--text-dim);
 }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown("""
-<div class="scout-header">
-    <h1>Sorare Scout</h1>
-</div>
+<div class="scout-header"><h1>Sorare Scout</h1></div>
 <div class="scout-sub"><span class="live-dot"></span>&nbsp; Live data from Sorare's own API · not financial advice, always confirm prices in-app before buying</div>
 """, unsafe_allow_html=True)
 
