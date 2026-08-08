@@ -423,57 +423,119 @@ if run_button:
             min_apps_l15=min_apps, min_price_eur=price_range[0], max_price_eur=price_range[1],
             pages=pages, page_size=20,
         )
+    st.session_state["all_rows"] = rows
+    st.session_state["value_names"] = find_value_picks(rows)
+
+if "all_rows" not in st.session_state:
+    st.info("Set your filters on the left and hit Search.")
+else:
+    rows = st.session_state["all_rows"]
+    value_names = st.session_state["value_names"]
 
     if not rows:
-        st.warning("No players matched — try widening your filters.")
+        st.warning("No players matched — try widening your filters and searching again.")
     else:
-        value_names = find_value_picks(rows)
+        # ---- Refine panel: filters/sorts applied to already-fetched data, no re-query ----
+        st.markdown("#### Refine results")
+        rf1, rf2, rf3, rf4 = st.columns([2, 1.4, 1.4, 1.4])
 
-        st.markdown(f"#### {len(rows)} players found")
+        with rf1:
+            name_query = st.text_input("Search player name", "")
 
-        cards_html = '<div class="card-grid">'
-        for r in rows:
-            is_value = r["name"] in value_names
-            fixture_html = f'<div class="fixture-line">{r["fixture"]}</div>' if r["fixture"] else '<div class="fixture-line">Fixture unavailable</div>'
-            price_html = (f'<span class="price-tag">€{r["price_eur"]:.2f}</span>'
-                          if r["price_eur"] is not None else '<span class="price-tag no-offer">no offer</span>')
+        all_clubs = sorted({r["club_code"] or r["club"] for r in rows})
+        with rf2:
+            club_filter = st.multiselect("Club", all_clubs)
 
-            def fmt(x):
-                return f"{x:.0f}" if isinstance(x, (int, float)) else "–"
+        all_positions = sorted({p.strip() for r in rows for p in r["position"].split(",")})
+        with rf3:
+            position_filter = st.multiselect("Position", all_positions)
 
-            club_display = r["club_code"] or r["club"][:12].upper()
-            card_html = f"""
-            <div class="player-card {'value-pick' if is_value else ''}">
-                {'<div class="value-banner">Efficient</div>' if is_value else ''}
-                <div class="card-top">
-                    <span class="club-chip">{club_display}</span>
-                    <span class="pos-pill">{r['position']}</span>
+        with rf4:
+            sort_choice = st.selectbox(
+                "Sort by",
+                ["L15 (high→low)", "L10 (high→low)", "L5 (high→low)",
+                 "Price (low→high)", "Price (high→low)", "Appearances (high→low)", "Name (A→Z)"],
+            )
+
+        rf5, rf6 = st.columns(2)
+        with rf5:
+            l15_bounds = [r["l15"] for r in rows if r["l15"] is not None]
+            if l15_bounds:
+                lo, hi = int(min(l15_bounds)), int(max(l15_bounds)) + 1
+                l15_range = st.slider("L15 score range", lo, hi, (lo, hi))
+            else:
+                l15_range = None
+        with rf6:
+            efficient_only = st.checkbox("Only show 'Efficient' picks")
+
+        # Apply refine filters
+        filtered = rows
+        if name_query:
+            filtered = [r for r in filtered if name_query.lower() in r["name"].lower()]
+        if club_filter:
+            filtered = [r for r in filtered if (r["club_code"] or r["club"]) in club_filter]
+        if position_filter:
+            filtered = [r for r in filtered if any(p.strip() in position_filter for p in r["position"].split(","))]
+        if l15_range:
+            filtered = [r for r in filtered if r["l15"] is not None and l15_range[0] <= r["l15"] <= l15_range[1]]
+        if efficient_only:
+            filtered = [r for r in filtered if r["name"] in value_names]
+
+        sort_map = {
+            "L15 (high→low)": ("l15", True),
+            "L10 (high→low)": ("l10", True),
+            "L5 (high→low)": ("l5", True),
+            "Price (low→high)": ("price_eur", False),
+            "Price (high→low)": ("price_eur", True),
+            "Appearances (high→low)": ("apps_l15", True),
+            "Name (A→Z)": ("name", False),
+        }
+        sort_key, reverse = sort_map[sort_choice]
+        filtered = sorted(filtered, key=lambda r: (r[sort_key] is None, r[sort_key]), reverse=reverse)
+
+        st.markdown(f"#### {len(filtered)} of {len(rows)} players")
+
+        if not filtered:
+            st.warning("Nothing matches these refine filters — loosen them above.")
+        else:
+            cards_html = '<div class="card-grid">'
+            for r in filtered:
+                is_value = r["name"] in value_names
+                fixture_html = f'<div class="fixture-line">{r["fixture"]}</div>' if r["fixture"] else '<div class="fixture-line">Fixture unavailable</div>'
+                price_html = (f'<span class="price-tag">€{r["price_eur"]:.2f}</span>'
+                              if r["price_eur"] is not None else '<span class="price-tag no-offer">no offer</span>')
+
+                def fmt(x):
+                    return f"{x:.0f}" if isinstance(x, (int, float)) else "–"
+
+                club_display = r["club_code"] or r["club"][:12].upper()
+                card_html = f"""
+                <div class="player-card {'value-pick' if is_value else ''}">
+                    {'<div class="value-banner">Efficient</div>' if is_value else ''}
+                    <div class="card-top">
+                        <span class="club-chip">{club_display}</span>
+                        <span class="pos-pill">{r['position']}</span>
+                    </div>
+                    <div class="player-name">{r['name']}</div>
+                    {fixture_html}
+                    <div class="stat-ticker">
+                        <div class="stat-block"><div class="stat-value">{fmt(r['l5'])}</div><div class="stat-label">L5</div></div>
+                        <div class="stat-block"><div class="stat-value">{fmt(r['l10'])}</div><div class="stat-label">L10</div></div>
+                        <div class="stat-block"><div class="stat-value">{fmt(r['l15'])}</div><div class="stat-label">L15</div></div>
+                    </div>
+                    <div class="card-footer">
+                        {price_html}
+                        <span class="apps-badge">{r['apps_l15']}/15 apps</span>
+                    </div>
                 </div>
-                <div class="player-name">{r['name']}</div>
-                {fixture_html}
-                <div class="stat-ticker">
-                    <div class="stat-block"><div class="stat-value">{fmt(r['l5'])}</div><div class="stat-label">L5</div></div>
-                    <div class="stat-block"><div class="stat-value">{fmt(r['l10'])}</div><div class="stat-label">L10</div></div>
-                    <div class="stat-block"><div class="stat-value">{fmt(r['l15'])}</div><div class="stat-label">L15</div></div>
-                </div>
-                <div class="card-footer">
-                    {price_html}
-                    <span class="apps-badge">{r['apps_l15']}/15 apps</span>
-                </div>
-            </div>
-            """
-            # Strip leading whitespace on every line — otherwise Markdown
-            # treats 4+ leading spaces as a preformatted code block and
-            # renders the raw HTML as text instead of parsing it.
-            card_html = "\n".join(line.lstrip() for line in card_html.split("\n"))
-            cards_html += card_html
-        cards_html += "</div>"
-        st.markdown(cards_html, unsafe_allow_html=True)
+                """
+                card_html = "\n".join(line.lstrip() for line in card_html.split("\n"))
+                cards_html += card_html
+            cards_html += "</div>"
+            st.markdown(cards_html, unsafe_allow_html=True)
 
-        if value_names:
-            st.caption(f"⚡ {len(value_names)} players flagged 'Efficient' — cheap relative to score, WITHIN their position. "
-                       f"Read this as 'high score per euro,' not 'underpriced': it doesn't account for club reputation, "
-                       f"and cards from smaller/less-followed clubs are cheaper across the board regardless of performance. "
-                       f"That can still be a good pick, but bigger-club cards tend to resell more easily later.")
-else:
-    st.info("Set your filters on the left and hit Search.")
+            if value_names:
+                st.caption(f"⚡ {len(value_names)} players flagged 'Efficient' (out of all {len(rows)} fetched) — cheap relative to score, WITHIN their position. "
+                           f"Read this as 'high score per euro,' not 'underpriced': it doesn't account for club reputation, "
+                           f"and cards from smaller/less-followed clubs are cheaper across the board regardless of performance. "
+                           f"That can still be a good pick, but bigger-club cards tend to resell more easily later.")
