@@ -107,7 +107,7 @@ def _fetch_game_details(game_id):
 
 
 def search(competition_slug, rarity, position, min_apps_l15, max_price_eur, min_price_eur,
-           pages, page_size, include_all_statuses=False, fetch_all=False):
+           pages, page_size, include_all_statuses=False, fetch_all=False, require_price=False):
     filters = f"sport:football AND (active_competitions:{competition_slug})"
     if position and position != "Any":
         filters += f" AND position:{position}"
@@ -137,6 +137,19 @@ def search(competition_slug, rarity, position, min_apps_l15, max_price_eur, min_
             if p.get("nextGame"):
                 next_game_id = p["nextGame"].get("id")
 
+            injuries = p.get("activeInjuries") or []
+            injury_label = None
+            if injuries:
+                first = injuries[0]
+                # Field names inside each injury are unconfirmed (we've only
+                # ever seen an empty list in real data) — try the likely
+                # candidates and fall back to a generic flag rather than
+                # crashing or showing nothing.
+                injury_label = (
+                    first.get("kind") or first.get("name") or first.get("type")
+                    or first.get("description") or "Injured"
+                ) if isinstance(first, dict) else "Injured"
+
             row = {
                 "name": p.get("displayName"),
                 "club": (p.get("activeClub") or {}).get("slug", "?"),
@@ -149,12 +162,21 @@ def search(competition_slug, rarity, position, min_apps_l15, max_price_eur, min_
                 "next_game_id": next_game_id,
                 "fixture": None,
                 "club_code": None,
+                "injury_label": injury_label,
             }
             if row["apps_l15"] < min_apps_l15:
                 continue
-            if max_price_eur is not None and (row["price_eur"] is None or row["price_eur"] > max_price_eur):
-                continue
-            if min_price_eur is not None and (row["price_eur"] is None or row["price_eur"] < min_price_eur):
+            # Only apply price bounds to players who actually have a price.
+            # A player with no active market offer shouldn't be silently
+            # dropped just because a price filter is set — that's a
+            # different question ("does this player have a price at all")
+            # from "is this player's price in my range".
+            if row["price_eur"] is not None:
+                if max_price_eur is not None and row["price_eur"] > max_price_eur:
+                    continue
+                if min_price_eur is not None and row["price_eur"] < min_price_eur:
+                    continue
+            elif require_price:
                 continue
             rows.append(row)
 
@@ -410,6 +432,19 @@ h1, h2, h3, h4 { font-weight: 800 !important; letter-spacing: -0.01em; }
     font-size: 0.7rem;
     color: var(--text-dim);
 }
+.injury-badge {
+    display: inline-block;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: #FF6B6B;
+    background: rgba(255,107,107,0.12);
+    border: 1px solid rgba(255,107,107,0.4);
+    border-radius: 999px;
+    padding: 2px 8px;
+    text-transform: uppercase;
+    margin-left: 6px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -425,7 +460,13 @@ with st.sidebar:
     position = st.selectbox("Position", POSITIONS)
     min_apps = st.slider("Min appearances (last 15)", 0, 15, 0,
                           help="Set to 0 to include everyone, including players with almost no minutes.")
-    price_range = st.slider("Price range (EUR)", 0, 500, (0, 500))
+    price_range = st.slider("Price range (EUR)", 0, 500, (0, 500),
+                             help="Only applied to players who HAVE a listed price — see checkbox below for players with no active offer.")
+    require_price = st.checkbox(
+        "Only show players with an active market price",
+        value=False,
+        help="Off (default) = include players even if they have no current offer on the market. On = hide anyone without a price.",
+    )
     include_all_statuses = st.checkbox(
         "Include bench/rotation players",
         value=True,
@@ -447,7 +488,7 @@ if run_button:
             competition_slug=comp_slug, rarity=rarity, position=position,
             min_apps_l15=min_apps, min_price_eur=price_range[0], max_price_eur=price_range[1],
             pages=pages, page_size=20,
-            include_all_statuses=include_all_statuses, fetch_all=fetch_all,
+            include_all_statuses=include_all_statuses, fetch_all=fetch_all, require_price=require_price,
         )
     st.session_state["all_rows"] = rows
     st.session_state["value_names"] = find_value_picks(rows)
@@ -493,6 +534,7 @@ else:
                 l15_range = None
         with rf6:
             efficient_only = st.checkbox("Only show 'Efficient' picks")
+            hide_injured = st.checkbox("Hide injured players", value=True)
 
         # Apply refine filters
         filtered = rows
@@ -506,6 +548,8 @@ else:
             filtered = [r for r in filtered if r["l15"] is not None and l15_range[0] <= r["l15"] <= l15_range[1]]
         if efficient_only:
             filtered = [r for r in filtered if r["name"] in value_names]
+        if hide_injured:
+            filtered = [r for r in filtered if not r.get("injury_label")]
 
         sort_map = {
             "L15 (high→low)": ("l15", True),
@@ -535,12 +579,14 @@ else:
                     return f"{x:.0f}" if isinstance(x, (int, float)) else "–"
 
                 club_display = r["club_code"] or r["club"][:12].upper()
+                injury_html = f'<span class="injury-badge">{r["injury_label"]}</span>' if r.get("injury_label") else ""
                 card_html = f"""
                 <div class="player-card {'value-pick' if is_value else ''}">
                     {'<div class="value-banner">Efficient</div>' if is_value else ''}
                     <div class="card-top">
                         <span class="club-chip">{club_display}</span>
                         <span class="pos-pill">{r['position']}</span>
+                        {injury_html}
                     </div>
                     <div class="player-name">{r['name']}</div>
                     {fixture_html}
