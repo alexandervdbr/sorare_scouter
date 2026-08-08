@@ -442,11 +442,12 @@ with st.sidebar:
 
 if run_button:
     comp_slug = COMPETITIONS[competition_name]
-    with st.spinner("Querying Sorare..."):
+    with st.spinner("Querying Sorare... (fetching everything can take a while)" if fetch_all else "Querying Sorare..."):
         rows = search(
             competition_slug=comp_slug, rarity=rarity, position=position,
             min_apps_l15=min_apps, min_price_eur=price_range[0], max_price_eur=price_range[1],
             pages=pages, page_size=20,
+            include_all_statuses=include_all_statuses, fetch_all=fetch_all,
         )
     st.session_state["all_rows"] = rows
     st.session_state["value_names"] = find_value_picks(rows)
